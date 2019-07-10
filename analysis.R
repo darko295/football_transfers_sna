@@ -87,7 +87,7 @@ measures_18 <- compute_measures(df_18 ,club_df_18)
 club_df_18 <- join(club_df_18, measures_18, by="ID")
 
 
-df_04 <- read.csv(data/"clean_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
+df_04 <- read.csv("data/clean_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
 club_df_04 <- read.csv("data/clubs_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
 df_04 <- df_04 %>% filter(DivFrom %in% top5 & DivTo %in% top5)
 club_df_04 <- club_df_04 %>% filter(Division %in% top5)
@@ -105,7 +105,8 @@ dist <- club_df_all %>% select(total_degree, Year_F)
 dist$Year_F <- as.factor(dist$Year_F)
 
 #plot shows that there was more interactions in 2004, but what about money spent?
-ggplot(dist, aes(total_degree, fill = Year_F)) + geom_density(alpha = 0.2) 
+ggplot(dist, aes(y=total_degree, x= Year_F, color = Year_F)) + geom_violin(trim = FALSE) +
+  stat_summary(fun.y=mean, geom="point", size=2, color="red") + xlab("Year") + ylab("Total degree")
 
 mean(dist$total_degree[dist$Year_F==2004],na.rm = T)
 mean(dist$total_degree[dist$Year_F==2018],na.rm = T)
@@ -114,7 +115,8 @@ mean(dist$total_degree[dist$Year_F==2018],na.rm = T)
 spent_dist <- club_df_all %>% select(spent, Year_F)
 spent_dist$Year_F <- as.factor(spent_dist$Year_F)
 
-ggplot(spent_dist, aes(spent, fill = Year_F)) + geom_density(alpha = 0.2)
+ggplot(spent_dist, aes(spent, x= Year_F, color = Year_F)) + geom_boxplot(trim = FALSE) +
+  stat_summary(fun.y=median, geom="point", size=2, color="red") + xlab("Year") + ylab("Money spent")
 
 ### CALCULATIONS
 
@@ -319,6 +321,7 @@ df_04 <- df_04 %>% filter(Year_F == 2004 & DivFrom %in% top5 & DivTo %in% top5)
 row.names(club_df_04) <- NULL
 g1 <- graph_from_data_frame(df_04 %>% select(ClubFromID,ClubToID,Amount),vertices = club_df_04$ID)
 E(g1)$amount <- df_04$Amount
+E(g1)$width <- df_04$Amount
 V(g1)$earned <- club_df_04$earned
 V(g1)$spent <- club_df_04$spent
 V(g1)$tot_activity <- club_df_04$earned + club_df_04$spent
@@ -766,3 +769,47 @@ spent <- df_18 %>% group_by(ClubTo,DivFrom) %>% dplyr::summarise(spent = sum(Amo
 
 casted <- dcast(spent, DivFrom~ClubTo)
 casted[is.na(casted)] <- 0
+
+#### graph with node size based on betweenness for 2004
+df_04 <- read.csv("data/clean_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
+club_df_04 <- read.csv("data/clubs_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
+
+df_04 <- df_04 %>% filter(DivTo %in% top5 & DivFrom %in% top5)
+club_df_04 <- club_df_04 %>% filter( Division %in% top5)
+
+measures <- compute_measures(df_04,club_df_04)
+club_df_04 <- join(club_df_04, measures, by="ID")
+
+nodes <- data.frame(id = club_df_04$ID,
+                    value = club_df_04$betweenness,
+                    label = club_df_04$Club,
+                    group = club_df_04$Division,
+                    title = club_df_04$Club,
+                    mysel = ifelse(club_df_04$Club %in% c("Inter Milan","Monaco","Liverpool"),"yes","no")
+)
+
+edges <- data.frame(from = df_04$ClubFromID, 
+                    to = df_04$ClubToID,
+                    smooth = TRUE,
+                    value = df_04$Amount,
+                    title = paste0("Player: ",df_04$Name,
+                                   "<br>From: ",df_04$ClubFrom,
+                                   "<br>To: ",df_04$ClubTo,
+                                   "<br>Amount: ",df_04$Amount,"M€")
+                    
+)
+
+ graph <- visNetwork(nodes,edges) %>%
+  visGroups(groupname = "England", color = "#97c2fc") %>% #c("#97c2fc","#ffff00","#fb7e81","#eb7df4","#7be141")
+  visGroups(groupname = "Spain", color = "#ffff00") %>%
+  visGroups(groupname = "Italy", color = "#fb7e81") %>%
+  visGroups(groupname = "Germany", color = "#eb7df4") %>%
+  visGroups(groupname = "France", color = "#7be141") %>%
+  visLegend(width = 0.07, position = "right",zoom = F) %>%
+  visNodes(scaling = list("min" = 10,"max"=50)) %>%
+  visEdges(scaling = list("min" = 1,"max"=20),
+           arrows = "to",arrowStrikethrough = F) %>%
+  visIgraphLayout(layout = "layout_nicely") %>%
+  visOptions(highlightNearest = list(enabled = T, degree = 2) ,selectedBy = "mysel") %>%
+  visPhysics(solver = "repulsion", repulsion = list(nodeDistance = 110))
+
