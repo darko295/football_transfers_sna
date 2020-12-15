@@ -8,7 +8,9 @@ library(reshape2)
 source("functions.R")
 top5 <- c("England","Spain","Italy","Germany","France")
 
-### TOP 5 LEAGUES GRAPH - 2018
+#**********************************# 
+#### TOP 5 LEAGUES GRAPH - 2018 ####
+#**********************************# 
 
 #loading data
 df_18 <- read.csv("data/clean_data_18.csv", header = T, sep = ",", stringsAsFactors = F)
@@ -74,17 +76,19 @@ in_degree$Club <- row.names(in_degree)
 out_degree$Club <- row.names(out_degree)
 total_degree$Club <- row.names(total_degree)
 
-
-##### PLOTS #####
+#*************# 
+#### PLOTS ####
+#*************# 
 
 # DEGREE DIST
 df_18 <- read.csv("data/clean_data_18.csv", header = T, sep = ",", stringsAsFactors = F)
 club_df_18 <- read.csv("data/clubs_data_18.csv", header = T, sep = ",", stringsAsFactors = F)
+club_df_18 <- club_df_18 %>% select(-Tier)
 df_18 <- df_18 %>% filter(DivFrom %in% top5 & DivTo %in% top5)
 club_df_18 <- club_df_18 %>% filter(Division %in% top5)
 
 measures_18 <- compute_measures(df_18 ,club_df_18)
-club_df_18 <- join(club_df_18, measures_18, by="ID")
+club_df_18 <- left_join(club_df_18, measures_18, by="ID")
 
 
 df_04 <- read.csv("data/clean_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
@@ -93,7 +97,7 @@ df_04 <- df_04 %>% filter(DivFrom %in% top5 & DivTo %in% top5)
 club_df_04 <- club_df_04 %>% filter(Division %in% top5)
 
 measures_04 <- compute_measures(df_04, club_df_04)
-club_df_04 <- join(club_df_04, measures_04, by="ID")
+club_df_04 <- left_join(club_df_04, measures_04, by="ID")
 
 club_df_04$Year_F <- 2004
 club_df_18$Year_F <- 2018
@@ -104,9 +108,16 @@ club_df_all <- rbind(club_df_04, club_df_18)
 dist <- club_df_all %>% select(total_degree, Year_F)
 dist$Year_F <- as.factor(dist$Year_F)
 
+d <- density(dist$total_degree[dist$Year_F == 2018],na.rm = T) # returns the density data
+plot(d)
+
+
+names(dist)[2] <- "Year"
+
 #plot shows that there was more interactions in 2004, but what about money spent?
-ggplot(dist, aes(y=total_degree, x= Year_F, color = Year_F)) + geom_violin(trim = FALSE) +
-  stat_summary(fun.y=mean, geom="point", size=2, color="red") + xlab("Year") + ylab("Total degree")
+ggplot(dist, aes(y=total_degree, x= Year, color = Year)) + geom_violin(trim = FALSE) +
+  stat_summary(fun=mean, geom="point", size=2, color="red") + xlab("Year") + ylab("Total degree")
+  
 
 mean(dist$total_degree[dist$Year_F==2004],na.rm = T)
 mean(dist$total_degree[dist$Year_F==2018],na.rm = T)
@@ -115,10 +126,14 @@ mean(dist$total_degree[dist$Year_F==2018],na.rm = T)
 spent_dist <- club_df_all %>% select(spent, Year_F)
 spent_dist$Year_F <- as.factor(spent_dist$Year_F)
 
-ggplot(spent_dist, aes(spent, x= Year_F, color = Year_F)) + geom_boxplot(trim = FALSE) +
-  stat_summary(fun.y=median, geom="point", size=2, color="red") + xlab("Year") + ylab("Money spent")
 
-### CALCULATIONS
+names(spent_dist)[2] <- "Year"
+ggplot(spent_dist, aes(spent, x= Year, color = Year)) + geom_boxplot(trim = FALSE)  + 
+  stat_summary(fun=median, geom="point", size=2, color="red") + xlab("Year") + ylab("Money spent (millions of €)")
+
+#********************#
+#### CALCULATIONS ####
+#********************#
 
 # median of money spent for 2004
 median(spent_dist$spent[spent_dist$Year_F==2004],na.rm = T)
@@ -131,6 +146,7 @@ df_04 <- df %>% filter(Year_F == 2004 & DivFrom %in% top5 & DivTo %in% top5)
 
 length(which(df_18$DivFrom == df_18$DivTo))/nrow(df_18)
 length(which(df_04$DivFrom == df_04$DivTo))/nrow(df_04)
+
 
 # % of transfers occured between clubs from same Division by Division
 sd_perc_18 <- data.frame()
@@ -153,21 +169,21 @@ for (i in 1:length(top5)) {
   sd_perc_04 <- rbind(sd_perc_04,temp)
 }
 
-#2004
+#************#
+#### 2004 ####
+#************#
 datatable(sd_perc_04,colnames = c("Number of transfers","From same division","Percentage"),
           rownames = F, options = list(autoWidth = F, searching = FALSE, scrollX = F,
                                        bPaginate= FALSE, dom = 'Bt'))
-#2018
+#************#
+#### 2018 ####
+#************#
 datatable(sd_perc_18,colnames = c("Number of transfers","From same division","Percentage"),
           rownames = F, options = list(autoWidth = F, searching = FALSE, scrollX = F,
                                        bPaginate= FALSE, dom = 'Bt'))
 
 
-######## CHECKING NAT FREQUENCIES
-df_18_nat <- df %>% filter(Year_F == 2018) %>% group_by(Nat) %>% summarise(count=n()) %>% arrange(desc(count))
-df_04_nat <- df %>% filter(Year_F == 2004) %>% group_by(Nat) %>% summarise(count=n()) %>% arrange(desc(count))
-
-
+#computing some network metrics for each division
 df <- read.csv("data/td.csv", header = T, sep = ",", stringsAsFactors = F)
 club_df <- read.csv("data/cd.csv", header = T, sep = ",", stringsAsFactors = F)
 
@@ -186,11 +202,10 @@ ger_2018 <- compute_graph_info_by_div_year(df,"Germany",2018)
 complete_2018 <- bind_rows(eng_2018, spa_2018, ita_2018,fra_2018,ger_2018)
 
 
+#****************************************#
+#### DIVISIONS WITH MOST INTERACTIONS ####
+#****************************************#
 
-
-
-
-### divisions with most interactions
 df <- df %>% filter(DivFrom %in% top5 & DivTo %in% top5)
 df$Comb <- paste0(df$DivFrom,"-",df$DivTo)
 comb_dist_04 <- df %>% filter(Year_F == 2004) %>% group_by(Comb) %>% dplyr::summarise(count = n())
@@ -216,12 +231,14 @@ comb_dist$comb <- gsub("fra","France",comb_dist$comb)
 comb_dist$comb <- gsub("_","-",comb_dist$comb)
 
 
+#**********************************************#
+#### INTERACTIONS BETWEEN DIVISIONS BY YEAR ####
+#**********************************************#
 
+#************#
+#### 2018 ####
+#************#
 
-
-#INTERACTIONS BETWEEN DIVISIONS BY YEAR
-
-#2018
 club_df_18 <- club_df %>% filter(Year_F == 2018 & Division %in% top5)
 df_18 <- df %>% filter(Year_F == 2018 & DivFrom %in% top5 & DivTo %in% top5) %>%
   select(ClubFromID,ClubToID,DivFrom,DivTo)
@@ -251,8 +268,9 @@ edges <- data.frame(from = df_18_dist$DivFromID,
                     font.size = c(20),
                     smooth = TRUE
 )
-
-#2004
+#************#
+#### 2004 ####
+#************#
 club_df_04 <- club_df %>% filter(Year_F == 2004 & Division %in% top5)
 df_04 <- df %>% filter(Year_F == 2004 & DivFrom %in% top5 & DivTo %in% top5) %>%
   select(ClubFromID,ClubToID,DivFrom,DivTo)
@@ -294,17 +312,25 @@ visIgraphLayout(layout = "layout_nicely") %>%
   visOptions(highlightNearest = T,selectedBy = "group", nodesIdSelection = T) %>%
   visPhysics(solver = "repulsion", repulsion = list(nodeDistance = 150))
 
+
 #GRAPH WITHOUT MONACO, ROMA & LEICESTER
 df_18 <- df %>% filter(Year_F == 2018 & DivFrom %in% top5 & DivTo %in% top5 & !ClubFrom %in% c("Monaco","AS Roma","Leicester") & !ClubTo %in% c("Monaco","AS Roma","Leicester")) %>%
   select(ClubFromID,ClubToID)
 g <- graph_from_data_frame(df_18)
 
+
 ncomp_dir <- count_components(g,mode = "strong")
+
+#******************************************#
+#### DEGREE vs. TOTAL TRANSFER ACTIVITY ####
+#*****************************************#
 
 ### COLOR GRADIENT NODES BASED ON OUT DEGREE
 ### NODE SIZE BASED ON EARNED MONEY
-### 2004 ###
 
+#************#
+#### 2004 ####
+#************#
 df <- read.csv("data/td.csv", header = T, sep = ",", stringsAsFactors = F)
 club_df <- read.csv("data/cd.csv", header = T, sep = ",", stringsAsFactors = F)
 club_df_04 <- club_df %>% filter(Year_F == 2004)
@@ -343,7 +369,10 @@ V(g1)$name <- club_df_04$Club
 visIgraph(g1) %>% 
   visNodes(title = club_df_04$Club,label = club_df_04$Club)
 
-### 2018 ###
+#************#
+#### 2018 ####
+#************#
+
 club_df_18 <- club_df %>% filter(Year_F == 2018)
 df_18 <- df %>% filter(Year_F == 2018)
 
@@ -387,7 +416,7 @@ datatable(club_df_04 %>% filter(Club %in% c("Chelsea","M'gladbach","Man United")
                              filename = 'Selected club data'
                            )
                          )))
-######################################
+
 
 ########### MONACO, PSG & CHELSEA 2018 #############
 datatable(club_df_18 %>% filter(Club %in% c("Chelsea","Monaco","Paris S-G")) %>%
@@ -400,14 +429,17 @@ datatable(club_df_18 %>% filter(Club %in% c("Chelsea","Monaco","Paris S-G")) %>%
                              filename = 'Selected club data'
                            )
                          )))
-######################################
 
-### BETWEENNESS vs TOTAL DEGREE - ITALY & FRANCE
+#****************************************************#
+#### BETWEENNESS vs TOTAL DEGREE - ITALY & FRANCE ####
+#****************************************************#
+
+
 club_df_04 <- club_df %>% filter(Year_F == 2004 & Division %in% c("Italy","France"))
 df_04 <- df %>% filter(Year_F == 2004 & DivFrom %in% c("Italy","France") & DivTo %in% c("Italy","France"))
 
 measures <- compute_measures(df_04,club_df_04)
-club_df_04 <- join(club_df_04, measures, by="ID")
+club_df_04 <- left_join(club_df_04, measures, by="ID")
 
 
 row.names(club_df_04) <- NULL
@@ -431,10 +463,18 @@ V(g1)$size <- V(g1)$total_degree*5
 V(g1)$title <- club_df_04$Club
 V(g1)$name <- club_df_04$Club
 
+set.seed(29)
 visIgraph(g1) %>% 
-  visNodes(title = club_df_04$Club,label = club_df_04$Club)
+  visNodes(title = club_df_04$Club,label = club_df_04$Club,font = list(size = 30))
 
-### BETWEENNESS vs TOTAL DEGREE - TOP 5
+#***************************************************#
+#### BETWEENNESS vs TOTAL DEGREE - TOP 5 LEAGUES ####
+#***************************************************#
+
+#************#
+#### 2004 ####
+#************#
+
 club_df_04 <- club_df %>% filter(Year_F == 2004 & Division %in% top5)
 df_04 <- df %>% filter(Year_F == 2004 & DivFrom %in% top5 & DivTo %in% top5)
 
@@ -455,7 +495,7 @@ V(g1)$total_degree <- club_df_04$total_degree
 V(g1)$betweenness <- club_df_04$betweenness
 V(g1)$domestic <- club_df_04$Domestic
 
-sp_col_palette = attr_based_color_gradient(V(g1)$domestic , 
+sp_col_palette = attr_based_color_gradient(V(g1)$betweenness , 
                                            c('yellow','red','purple')) 
 
 
@@ -468,8 +508,53 @@ V(g1)$group <- club_df_04$Division
 visIgraph(g1) %>% 
   visOptions(highlightNearest = list(enabled = T, degree = 0.5),selectedBy = "group")
 
-  
-#GRAPH WITH "OTHER" LEAGUES INCLUDED - TRANSFERS *FROM* OTHER LEAGUES
+
+#************#
+#### 2018 ####
+#************#
+
+club_df_18 <- club_df %>% filter(Year_F == 2018 & Division %in% top5)
+df_18 <- df %>% filter(Year_F == 2018 & DivFrom %in% top5 & DivTo %in% top5)
+
+measures <- compute_measures(df_18,club_df_18)
+club_df_18 <- left_join(club_df_18, measures, by="ID")
+
+
+row.names(club_df_18) <- NULL
+g1 <- graph_from_data_frame(df_18 %>% select(ClubFromID,ClubToID,Amount),vertices = club_df_18$ID)
+E(g1)$amount <- df_18$Amount
+V(g1)$earned <- club_df_18$earned
+V(g1)$spent <- club_df_18$spent
+V(g1)$tot_activity <- club_df_18$earned + club_df_18$spent
+V(g1)$profit_loss <- club_df_18$profit_loss
+V(g1)$out_degree <- club_df_18$out_degree
+V(g1)$in_degree <- club_df_18$in_degree
+V(g1)$total_degree <- club_df_18$total_degree
+V(g1)$betweenness <- club_df_18$betweenness
+V(g1)$domestic <- club_df_18$Domestic
+
+sp_col_palette = attr_based_color_gradient(V(g1)$betweenness , 
+                                           c('yellow','red','purple')) 
+
+
+V(g1)$color <- sp_col_palette
+V(g1)$size <- V(g1)$total_degree*5
+V(g1)$title <- club_df_18$Club
+V(g1)$name <- club_df_18$Club
+V(g1)$group <- club_df_18$Division
+
+visIgraph(g1) %>% 
+  visOptions(highlightNearest = list(enabled = T, degree = 0.5),selectedBy = "group")
+
+
+#****************************************************************************# 
+#### GRAPH WITH "OTHER" LEAGUES INCLUDED - TRANSFERS *FROM* OTHER LEAGUES ####
+#****************************************************************************# 
+
+#************#
+#### 2004 ####
+#************#
+
 df_04 <- read.csv("data/clean_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
 club_df_04 <- read.csv("data/clubs_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
 
@@ -512,6 +597,7 @@ visNetwork(nodes,edges) %>%
   visOptions(highlightNearest = T,selectedBy = "group", nodesIdSelection = T) %>%
   visPhysics(solver = "repulsion", repulsion = list(nodeDistance = 110))
 
+
 ### some metrics will be calculated for each combination of top5 league & OTHER
 oth_m_04 <- data.frame()
 for (i in 1:length(top5)) {
@@ -537,8 +623,10 @@ for (i in 1:length(top5)) {
   oth_m_04 <- rbind(oth_m_04,temp)
 }  
 
+#************#
+#### 2018 ####
+#************#
 
-### SAME FOR 2018
 df_18 <- read.csv("data/clean_data_18.csv", header = T, sep = ",", stringsAsFactors = F)
 club_df_18 <- read.csv("data/clubs_data_18.csv", header = T, sep = ",", stringsAsFactors = F)
 
@@ -615,7 +703,14 @@ earned <- df_18 %>% group_by(ClubFrom,DivTo) %>% dplyr::summarise(spent = sum(Am
 casted <- dcast(spent, DivTo~ClubFrom)
 casted[is.na(casted)] <- 0
 
-#GRAPH WITH "OTHER" LEAGUES INCLUDED - TRANSFERS *TO* OTHER LEAGUES
+#**************************************************************************# 
+#### GRAPH WITH "OTHER" LEAGUES INCLUDED - TRANSFERS *TO* OTHER LEAGUES ####
+#**************************************************************************# 
+
+#************#
+#### 2004 ####
+#************#
+
 df_04 <- read.csv("data/clean_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
 club_df_04 <- read.csv("data/clubs_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
 
@@ -692,7 +787,10 @@ casted[is.na(casted)] <- 0
 
 
 
-### SAME FOR 2018
+#************#
+#### 2018 ####
+#************#
+#*
 df_18 <- read.csv("data/clean_data_18.csv", header = T, sep = ",", stringsAsFactors = F)
 club_df_18 <- read.csv("data/clubs_data_18.csv", header = T, sep = ",", stringsAsFactors = F)
 
@@ -723,7 +821,7 @@ edges <- data.frame(from = df_18$ClubFromID,
 )
 
 visNetwork(nodes,edges) %>%
-  visGroups(groupname = "England", color = "#97c2fc") %>% #c("#97c2fc","#ffff00","#fb7e81","#eb7df4","#7be141")
+  visGroups(groupname = "England", color = "#97c2fc") %>%
   visGroups(groupname = "Spain", color = "#ffff00") %>%
   visGroups(groupname = "Italy", color = "#fb7e81") %>%
   visGroups(groupname = "Germany", color = "#eb7df4") %>%
@@ -770,7 +868,11 @@ spent <- df_18 %>% group_by(ClubTo,DivFrom) %>% dplyr::summarise(spent = sum(Amo
 casted <- dcast(spent, DivFrom~ClubTo)
 casted[is.na(casted)] <- 0
 
-#### graph with node size based on betweenness for 2004
+
+#**********************************************************#
+#### GRAPH WITH NODE SIZE BASED ON BETWEENNESS FOR 2004 ####
+#**********************************************************#
+#*
 df_04 <- read.csv("data/clean_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
 club_df_04 <- read.csv("data/clubs_data_04.csv", header = T, sep = ",", stringsAsFactors = F)
 
@@ -813,3 +915,48 @@ edges <- data.frame(from = df_04$ClubFromID,
   visOptions(highlightNearest = list(enabled = T, degree = 2) ,selectedBy = "mysel") %>%
   visPhysics(solver = "repulsion", repulsion = list(nodeDistance = 110))
 
+#*******************************************************************#
+#### EXAMINING INFLUENCE OF LEAGUE POSITION ON SPENDING PATTERNS ####
+#*******************************************************************#
+
+ df_18 <- read.csv("data/clean_data_18.csv", header = T, sep = ",", stringsAsFactors = F)
+ club_df_18 <- read.csv("data/clubs_data_18.csv", header = T, sep = ",", stringsAsFactors = F)
+ df_18 <- df_18 %>% filter(DivFrom %in% top5 & DivTo %in% top5)
+ club_df_18 <- club_df_18 %>% filter(Division %in% top5)
+ club_df_18$club_tier_size <- (4-club_df_18$Tier)*4
+ 
+ nodes <- data.frame(id = club_df_18$ID,
+                     value = club_df_18$club_tier_size,
+                     label = club_df_18$Club,
+                     group = club_df_18$Division
+ )
+ 
+ #edges param for visNetwork function
+ edges <- data.frame(from = df_18$ClubFromID, 
+                     to = df_18$ClubToID,
+                     smooth = TRUE,
+                     value = df_18$Amount,
+                     #width = round((df$Amount - min(df$Amount))/(max(df$Amount)-min(df$Amount))*20+1,0),
+                     title = paste0("Player: ",df_18$Name,
+                                    "<br>From: ",df_18$ClubFrom,
+                                    "<br>To: ",df_18$ClubTo,
+                                    "<br>Amount: ",df_18$Amount,"M€")
+                     
+ )
+ 
+ #plotting layout_nicely
+ visNetwork(nodes,edges,width = "100%", height = "1000px") %>%
+   visLegend(useGroups = TRUE) %>%
+   visNodes(scaling = list("min" = 10,"max"=50)) %>%
+   visEdges(scaling = list("min" = 1,"max"=20),
+            arrows = "to") %>%
+   visIgraphLayout(layout = "layout_with_fr") %>%
+   #visLayout(randomSeed = T) %>%
+   visOptions(highlightNearest = T,selectedBy = "group", nodesIdSelection = T) 
+ #%>%
+   #visPhysics(solver = "repulsion", repulsion = list(nodeDistance = 150))
+
+ df_18$TierFrom <- apply(as.matrix(df_18$ClubFromID),MARGIN = 1,FUN = function(x){club_df_18$Tier[club_df_18$ID == x]})
+ df_18$TierTo <- apply(as.matrix(df_18$ClubToID),MARGIN = 1,FUN = function(x){club_df_18$Tier[club_df_18$ID == x]})
+ 
+ tier_gb <- df_18 %>% group_by(TierFrom,TierTo) %>% summarise(count = n(),avg_amount = mean(Amount))
